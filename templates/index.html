@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SentimentEdge — Stock Prediction Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <!-- Ambient grid background -->
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <!-- ── HEADER ── -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-bracket">[</span>
+        <span class="logo-text">SentimentEdge</span>
+        <span class="logo-bracket">]</span>
+        <span class="logo-tag">v2.4.1</span>
+      </div>
+      <nav class="header-meta">
+        <span class="live-indicator"><span class="pulse"></span>LIVE</span>
+        <span class="meta-item">NLP ENGINE ACTIVE</span>
+        <span class="meta-item" id="clock">--:--:--</span>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ── TICKER STRIP ── -->
+  <div class="ticker-strip">
+    <div class="ticker-inner" id="tickerStrip">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- ── MAIN LAYOUT ── -->
+  <main class="main-layout">
+
+    <!-- LEFT: Sidebar ticker list -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="section-label">COVERAGE UNIVERSE</span>
+        <span class="sidebar-count" id="tickerCount">— TICKERS</span>
+      </div>
+      <ul class="ticker-list" id="tickerList">
+        <!-- Populated by JS -->
+      </ul>
+      <div class="sidebar-footer">
+        <div class="footer-stat">
+          <span class="fs-label">ML MODELS</span>
+          <span class="fs-value">3</span>
+        </div>
+        <div class="footer-stat">
+          <span class="fs-label">AVG ACCURACY</span>
+          <span class="fs-value accent">71%</span>
+        </div>
+        <div class="footer-stat">
+          <span class="fs-label">NLP PIPELINE</span>
+          <span class="fs-value green">ONLINE</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT: Detail panel -->
+    <section class="detail-panel" id="detailPanel">
+
+      <!-- Empty state -->
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">◈</div>
+        <p class="empty-title">SELECT A TICKER</p>
+        <p class="empty-sub">Choose a symbol from the sidebar to load<br>full sentiment analysis and ML predictions.</p>
+        <div class="empty-models">
+          <span>LOGISTIC REGRESSION</span>
+          <span>RANDOM FOREST</span>
+          <span>GRADIENT BOOSTING</span>
+        </div>
+      </div>
+
+      <!-- Data state (hidden until ticker selected) -->
+      <div class="data-state hidden" id="dataState">
+
+        <!-- Stock header -->
+        <div class="stock-header">
+          <div class="stock-id">
+            <span class="stock-ticker" id="dTicker">AAPL</span>
+            <span class="stock-name" id="dName">Apple Inc.</span>
+          </div>
+          <div class="stock-price-block">
+            <span class="stock-price" id="dPrice">$0.00</span>
+            <span class="stock-change" id="dChange">+0.0%</span>
+          </div>
+        </div>
+
+        <!-- KPI row -->
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <span class="kpi-label">SENTIMENT SCORE</span>
+            <span class="kpi-value" id="dSentiment">+0.00</span>
+            <div class="kpi-bar-track">
+              <div class="kpi-bar" id="dSentimentBar"></div>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">ARTICLES ANALYZED</span>
+            <span class="kpi-value" id="dArticles">0</span>
+            <span class="kpi-sub">last 24h</span>
+          </div>
+          <div class="kpi-card kpi-prediction">
+            <span class="kpi-label">DIRECTION CALL</span>
+            <span class="kpi-direction" id="dPrediction">—</span>
+            <span class="kpi-confidence" id="dConfidence">0% confidence</span>
+          </div>
+        </div>
+
+        <!-- Charts row -->
+        <div class="charts-row">
+          <div class="chart-card chart-price">
+            <div class="chart-card-header">
+              <span>7-DAY PRICE</span>
+              <span class="chart-badge" id="priceTrend">—</span>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="priceChart"></canvas>
+            </div>
+          </div>
+          <div class="chart-card chart-sentiment">
+            <div class="chart-card-header">
+              <span>SENTIMENT DISTRIBUTION</span>
+              <span class="chart-badge neutral">30 DAYS</span>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="sentimentChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- ML Model comparison -->
+        <div class="models-section">
+          <div class="section-title">ML MODEL ACCURACY COMPARISON</div>
+          <div class="models-grid">
+            <div class="model-bar-item" id="modelLR">
+              <span class="model-name">LOGISTIC REGRESSION</span>
+              <div class="model-track">
+                <div class="model-fill" id="fillLR"></div>
+              </div>
+              <span class="model-pct" id="pctLR">—</span>
+            </div>
+            <div class="model-bar-item" id="modelRF">
+              <span class="model-name">RANDOM FOREST</span>
+              <div class="model-track">
+                <div class="model-fill" id="fillRF"></div>
+              </div>
+              <span class="model-pct" id="pctRF">—</span>
+            </div>
+            <div class="model-bar-item" id="modelGB">
+              <span class="model-name">GRADIENT BOOSTING</span>
+              <div class="model-track">
+                <div class="model-fill best" id="fillGB"></div>
+              </div>
+              <span class="model-pct" id="pctGB">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- News feed -->
+        <div class="news-section">
+          <div class="section-title">NEWS SENTIMENT FEED <span class="live-dot"></span></div>
+          <div class="news-list" id="newsList">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <span>SENTIMENTEDGE © 2025</span>
+    <span class="footer-sep">|</span>
+    <span>NLP + ML PRICE PREDICTION ENGINE</span>
+    <span class="footer-sep">|</span>
+    <span>NOT FINANCIAL ADVICE — EDUCATIONAL PROJECT</span>
+  </footer>
+
+  <script src="/static/js/main.js"></script>
+</body>
+</html>
