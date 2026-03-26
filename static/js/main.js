@@ -1,232 +1,220 @@
-/* ── SentimentEdge main.js ─────────────────────────────────────────────────── */
+/* ── MKTEDGE main.js ──────────────────────────────────────────────────────── */
 
 let priceChart = null;
 let sentChart  = null;
-let activeTicker = null;
+let active     = null;
 
-// ── CLOCK ──────────────────────────────────────────────────────────────────────
-function updateClock() {
+// ── CLOCK + MARKET STATUS ──────────────────────────────────────────────────────
+function tick() {
   const now = new Date();
   const h = String(now.getHours()).padStart(2,'0');
   const m = String(now.getMinutes()).padStart(2,'0');
   const s = String(now.getSeconds()).padStart(2,'0');
-  document.getElementById('clock').textContent = `${h}:${m}:${s} EST`;
-}
-updateClock();
-setInterval(updateClock, 1000);
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
 
-// ── TICKER STRIP ───────────────────────────────────────────────────────────────
-async function initTickerStrip() {
+  const day = now.getDay();
+  const total = now.getHours() * 60 + now.getMinutes();
+  const isWeekday = day >= 1 && day <= 5;
+  const isOpen = isWeekday && total >= 570 && total < 960; // 9:30–16:00
+  const el = document.getElementById('mktStatus');
+  el.textContent  = isOpen ? 'OPEN' : 'CLOSED';
+  el.style.color  = isOpen ? '#004400' : '#660000';
+}
+tick();
+setInterval(tick, 1000);
+
+// ── INIT ───────────────────────────────────────────────────────────────────────
+async function init() {
   const res  = await fetch('/api/tickers');
   const data = await res.json();
 
-  document.getElementById('tickerCount').textContent = `${data.length} TICKERS`;
+  document.getElementById('coverageCount').textContent = data.length;
 
-  // Build sidebar
-  const list = document.getElementById('tickerList');
-  list.innerHTML = '';
+  // Sidebar
+  const list = document.getElementById('covList');
   data.forEach(t => {
     const li = document.createElement('li');
     li.innerHTML = `
-      <button class="ticker-item-btn" data-sym="${t.symbol}" onclick="loadTicker('${t.symbol}', this)">
-        <div class="tib-top">
-          <span class="tib-sym">${t.symbol}</span>
-          <span class="tib-price">$${t.price.toFixed(2)}</span>
+      <button class="cov-btn" data-sym="${t.symbol}" onclick="load('${t.symbol}', this)">
+        <div class="cb-top">
+          <span class="cb-sym">${t.symbol}</span>
+          <span class="cb-price">$${t.price.toFixed(2)}</span>
         </div>
-        <div class="tib-bottom">
-          <span class="tib-name">${t.name}</span>
-          <span class="tib-change ${t.change >= 0 ? 'up' : 'down'}">${t.change >= 0 ? '+' : ''}${t.change}%</span>
+        <div class="cb-bot">
+          <span class="cb-name">${t.name}</span>
+          <span class="cb-chg ${t.change >= 0 ? 'pos' : 'neg'}">${t.change >= 0 ? '+' : ''}${t.change}%</span>
         </div>
       </button>`;
     list.appendChild(li);
   });
 
-  // Build scrolling strip — duplicate for seamless loop
-  const strip = document.getElementById('tickerStrip');
-  const buildItems = () => data.map(t => `
-    <span class="ticker-item">
-      <span class="t-sym">${t.symbol}</span>
-      <span class="t-price">$${t.price.toFixed(2)}</span>
-      <span class="${t.change >= 0 ? 't-up' : 't-down'}">${t.change >= 0 ? '▲' : '▼'} ${Math.abs(t.change)}%</span>
-    </span>
-    <span class="ticker-sep">·</span>
-  `).join('');
-  strip.innerHTML = buildItems() + buildItems(); // duplicate for loop
+  // Tape — duplicate for seamless scroll
+  const tape = document.getElementById('tapeInner');
+  const seg = () => data.map(t => `
+    <span class="tape-item">
+      <span class="tape-sym">${t.symbol}</span>
+      <span class="tape-price">$${t.price.toFixed(2)}</span>
+      <span class="${t.change >= 0 ? 'tape-up' : 'tape-down'}">${t.change >= 0 ? '▲' : '▼'}${Math.abs(t.change)}%</span>
+    </span>`).join('');
+  tape.innerHTML = seg() + seg();
 }
 
 // ── LOAD TICKER ────────────────────────────────────────────────────────────────
-async function loadTicker(sym, btn) {
-  if (activeTicker === sym) return;
-  activeTicker = sym;
+async function load(sym, btn) {
+  if (active === sym) return;
+  active = sym;
 
-  // Update sidebar active state
-  document.querySelectorAll('.ticker-item-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.cov-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 
-  // Show data state
   document.getElementById('emptyState').classList.add('hidden');
-  const ds = document.getElementById('dataState');
-  ds.classList.remove('hidden');
-  ds.classList.add('loading');
+  document.getElementById('dataView').classList.remove('hidden');
 
-  const res  = await fetch(`/api/analyze/${sym}`);
-  const d    = await res.json();
-  ds.classList.remove('loading');
+  const res = await fetch(`/api/analyze/${sym}`);
+  const d   = await res.json();
 
-  // ── Header ──
-  document.getElementById('dTicker').textContent   = sym;
-  document.getElementById('dName').textContent     = d.name;
-  document.getElementById('dPrice').textContent    = `$${d.price.toFixed(2)}`;
-  const chEl = document.getElementById('dChange');
-  chEl.textContent = `${d.change >= 0 ? '+' : ''}${d.change}%`;
-  chEl.className = 'stock-change ' + (d.change >= 0 ? 'up' : 'down');
+  // Title row
+  document.getElementById('dSym').textContent  = sym;
+  document.getElementById('dName').textContent = d.name;
+  document.getElementById('dPrice').textContent = `$${d.price.toFixed(2)}`;
+  const chgEl = document.getElementById('dChg');
+  chgEl.textContent = `${d.change >= 0 ? '+' : ''}${d.change}%`;
+  chgEl.className   = 'tr-chg ' + (d.change >= 0 ? 'pos' : 'neg');
 
-  // ── KPIs ──
-  const sent = d.avg_sentiment;
-  document.getElementById('dSentiment').textContent = (sent >= 0 ? '+' : '') + sent.toFixed(2);
-  document.getElementById('dSentiment').className = 'kpi-value ' + (sent > 0 ? 'up' : sent < 0 ? 'down' : '');
-  const barPct = Math.round(((sent + 1) / 2) * 100);
-  const bar = document.getElementById('dSentimentBar');
-  bar.style.width = barPct + '%';
-  bar.style.background = sent > 0.2 ? 'var(--green)' : sent < -0.2 ? 'var(--red)' : 'var(--accent)';
+  // Function blocks
+  const s = d.avg_sentiment;
+  document.getElementById('fnSent').textContent     = (s >= 0 ? '+' : '') + s.toFixed(2);
+  document.getElementById('fnSent').className       = 'fn-value ' + (s > 0.1 ? 'pos' : s < -0.1 ? 'neg' : '');
+  document.getElementById('fnSentDesc').textContent = s > 0.4 ? 'STRONGLY BULLISH' : s > 0.1 ? 'BULLISH' : s < -0.4 ? 'STRONGLY BEARISH' : s < -0.1 ? 'BEARISH' : 'NEUTRAL';
+  document.getElementById('fnArticles').textContent = d.articles.toLocaleString();
 
-  document.getElementById('dArticles').textContent = d.articles.toLocaleString();
+  const dirEl = document.getElementById('fnDir');
+  dirEl.textContent  = d.prediction === 'up' ? '▲ BULL' : '▼ BEAR';
+  dirEl.className    = 'fn-value big ' + (d.prediction === 'up' ? 'pos' : 'neg');
+  document.getElementById('fnConf').textContent = `${d.confidence}% CONFIDENCE`;
 
-  const predEl = document.getElementById('dPrediction');
-  predEl.textContent  = d.prediction.toUpperCase();
-  predEl.className    = 'kpi-direction ' + (d.prediction === 'up' ? 'up' : 'down');
-  document.getElementById('dConfidence').textContent = `${d.confidence}% confidence`;
+  // Best model
+  const models = d.models;
+  const entries = Object.entries(models);
+  const best = entries.reduce((a, b) => b[1] > a[1] ? b : a);
+  const names = { logistic_regression: 'LOG. REG.', random_forest: 'RAND. FOREST', gradient_boosting: 'GRAD. BOOST' };
+  document.getElementById('fnBestModel').textContent = names[best[0]] || best[0].toUpperCase();
+  document.getElementById('fnBestAcc').textContent   = `${best[1]}% ACCURACY`;
 
-  // ── Price Chart ──
-  const priceBadge = document.getElementById('priceTrend');
-  const prices = d.prices;
-  const trend = prices[prices.length - 1] > prices[0];
-  priceBadge.textContent = trend ? '▲ UPTREND' : '▼ DOWNTREND';
-  priceBadge.className   = 'chart-badge ' + (trend ? 'up' : 'down');
-
+  // Price chart
   if (priceChart) priceChart.destroy();
+  const prices = d.prices;
+  const up = prices[prices.length-1] >= prices[0];
+  const badge = document.getElementById('priceBadge');
+  badge.textContent = up ? '▲ UPTREND' : '▼ DOWNTREND';
+  badge.className   = 'cb-badge ' + (up ? 'up' : 'down');
+
   const ctx1 = document.getElementById('priceChart').getContext('2d');
-  const gradient = ctx1.createLinearGradient(0, 0, 0, 160);
-  gradient.addColorStop(0, trend ? 'rgba(0,230,118,0.18)' : 'rgba(255,61,90,0.18)');
-  gradient.addColorStop(1, 'transparent');
+  const grad = ctx1.createLinearGradient(0,0,0,140);
+  grad.addColorStop(0, up ? 'rgba(0,204,68,0.2)' : 'rgba(255,51,34,0.2)');
+  grad.addColorStop(1, 'transparent');
   priceChart = new Chart(ctx1, {
     type: 'line',
     data: {
-      labels: ['6d', '5d', '4d', '3d', '2d', '1d', 'Now'],
+      labels: ['6D','5D','4D','3D','2D','1D','NOW'],
       datasets: [{
         data: prices,
-        borderColor: trend ? '#00e676' : '#ff3d5a',
-        borderWidth: 2,
-        pointBackgroundColor: trend ? '#00e676' : '#ff3d5a',
+        borderColor: up ? '#00cc44' : '#ff3322',
+        borderWidth: 1.5,
+        pointBackgroundColor: up ? '#00cc44' : '#ff3322',
         pointRadius: [0,0,0,0,0,0,4],
-        fill: true, backgroundColor: gradient, tension: 0.4,
+        fill: true, backgroundColor: grad, tension: 0.3,
       }]
     },
     options: chartOpts('$')
   });
 
-  // ── Sentiment Distribution Chart ──
+  // Sentiment dist chart
   if (sentChart) sentChart.destroy();
-  const ctx2 = document.getElementById('sentimentChart').getContext('2d');
-  const sentLabels = ['Very Neg','Neg','Neutral−','Neutral+','Pos','Very Pos'];
-  const sentColors = [
-    'rgba(255,61,90,0.9)', 'rgba(255,100,100,0.7)', 'rgba(90,122,148,0.5)',
-    'rgba(90,122,148,0.5)', 'rgba(0,200,100,0.7)', 'rgba(0,230,118,0.9)'
-  ];
+  const ctx2 = document.getElementById('sentChart').getContext('2d');
   sentChart = new Chart(ctx2, {
     type: 'bar',
     data: {
-      labels: sentLabels,
+      labels: ['V.NEG','NEG','NEU-','NEU+','POS','V.POS'],
       datasets: [{
         data: d.sentiment_dist,
-        backgroundColor: sentColors,
-        borderRadius: 2, borderSkipped: false,
+        backgroundColor: [
+          'rgba(255,51,34,0.85)','rgba(255,100,80,0.6)',
+          'rgba(100,80,0,0.4)','rgba(100,80,0,0.4)',
+          'rgba(0,180,60,0.6)','rgba(0,204,68,0.85)'
+        ],
+        borderRadius: 0, borderSkipped: false,
       }]
     },
-    options: chartOpts('%', true)
+    options: chartOpts('', true)
   });
 
-  // ── ML Models ──
-  const models = d.models;
-  const vals   = Object.values(models);
-  const maxVal = Math.max(...vals);
-  const [lr, rf, gb] = vals;
-
+  // Model table
+  const [lr, rf, gb] = [models.logistic_regression, models.random_forest, models.gradient_boosting];
+  const maxAcc = Math.max(lr, rf, gb);
   setTimeout(() => {
-    document.getElementById('fillLR').style.width = lr + '%';
-    document.getElementById('fillRF').style.width = rf + '%';
-    document.getElementById('fillGB').style.width = gb + '%';
-    document.getElementById('pctLR').textContent = lr + '%';
-    document.getElementById('pctRF').textContent = rf + '%';
-    document.getElementById('pctGB').textContent = gb + '%';
-
-    // Highlight best
-    ['modelLR','modelRF','modelGB'].forEach((id, i) => {
-      document.getElementById(id).style.opacity = vals[i] === maxVal ? '1' : '0.6';
+    [['LR', lr], ['RF', rf], ['GB', gb]].forEach(([k, v]) => {
+      document.getElementById(`acc${k}`).textContent = `${v}%`;
+      document.getElementById(`bar${k}`).style.width = v + '%';
+      const isBest = v === maxAcc;
+      document.getElementById(`bar${k}`).classList.toggle('best', isBest);
+      const stEl = document.getElementById(`st${k}`);
+      stEl.textContent  = isBest ? '★ BEST' : 'ACTIVE';
+      stEl.className    = 'mt-status ' + (isBest ? 'best-tag' : 'ok-tag');
+      document.getElementById(`row${k}`).classList.toggle('best', isBest);
     });
-    document.getElementById('fillLR').classList.remove('best');
-    document.getElementById('fillRF').classList.remove('best');
-    const bestId = lr === maxVal ? 'fillLR' : rf === maxVal ? 'fillRF' : 'fillGB';
-    document.getElementById(bestId).classList.add('best');
-  }, 80);
+  }, 60);
 
-  // ── News ──
-  const newsList = document.getElementById('newsList');
-  newsList.innerHTML = '';
+  // News
+  const rows = document.getElementById('newsRows');
+  rows.innerHTML = '';
   d.news.forEach((item, i) => {
-    const s = item.sentiment;
-    const pillClass = s > 0.2 ? 'pill-pos' : s < -0.2 ? 'pill-neg' : 'pill-neu';
-    const pillText  = s > 0.2 ? `+${s.toFixed(2)}` : s.toFixed(2);
+    const sc = item.sentiment;
+    const scoreClass  = sc > 0.2 ? 'pos' : sc < -0.2 ? 'neg' : 'neu';
+    const sigClass    = sc > 0.2 ? 'sig-bull' : sc < -0.2 ? 'sig-bear' : 'sig-neu';
+    const sigText     = sc > 0.2 ? 'BULLISH' : sc < -0.2 ? 'BEARISH' : 'NEUTRAL';
     const el = document.createElement('div');
-    el.className = 'news-item';
-    el.style.animationDelay = `${i * 60}ms`;
+    el.className = 'nt-row';
+    el.style.animationDelay = `${i * 50}ms`;
     el.innerHTML = `
-      <div>
-        <div class="news-headline">${item.headline}</div>
-      </div>
-      <div class="news-meta">
-        <span class="news-source">${item.source}</span>
-        <span class="news-time">${item.time}</span>
-        <span class="sentiment-pill ${pillClass}">${pillText}</span>
-      </div>`;
-    newsList.appendChild(el);
+      <span class="nt-headline">${item.headline}</span>
+      <span class="nt-source">${item.source}</span>
+      <span class="nt-score ${scoreClass}">${(sc >= 0 ? '+' : '') + sc.toFixed(2)}</span>
+      <span class="nt-signal ${sigClass}">${sigText}</span>
+      <span class="nt-time">${item.time}</span>`;
+    rows.appendChild(el);
   });
 }
 
 // ── CHART DEFAULTS ─────────────────────────────────────────────────────────────
-function chartOpts(prefix = '', hideX = false) {
+function chartOpts(prefix, hideX = false) {
+  const mono = "'IBM Plex Mono', monospace";
   return {
     responsive: true, maintainAspectRatio: false,
-    animation: { duration: 700, easing: 'easeInOutQuart' },
+    animation: { duration: 600 },
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#0d1117',
-        borderColor: '#1e2d3d', borderWidth: 1,
-        titleColor: '#5a7a94', bodyColor: '#c9d8e8',
-        titleFont: { family: "'Space Mono', monospace", size: 10 },
-        bodyFont:  { family: "'Space Mono', monospace", size: 11 },
-        callbacks: {
-          label: ctx => prefix === '$'
-            ? ` $${ctx.parsed.y.toFixed(2)}`
-            : ` ${ctx.parsed.y}`
-        }
+        backgroundColor: '#0f0c00', borderColor: '#3a2e00', borderWidth: 1,
+        titleColor: '#6b5200', bodyColor: '#ffb000',
+        titleFont: { family: mono, size: 10 },
+        bodyFont:  { family: mono, size: 11 },
+        callbacks: { label: ctx => prefix === '$' ? ` $${ctx.parsed.y.toFixed(2)}` : ` ${ctx.parsed.y}` }
       }
     },
     scales: {
       x: {
         display: !hideX,
-        ticks: { color: '#5a7a94', font: { family: "'Space Mono', monospace", size: 9 } },
-        grid:  { color: 'rgba(30,45,61,0.5)' },
+        ticks: { color: '#6b5200', font: { family: mono, size: 9 } },
+        grid:  { color: 'rgba(58,46,0,0.5)' },
       },
       y: {
         position: 'right',
-        ticks: { color: '#5a7a94', font: { family: "'Space Mono', monospace", size: 9 } },
-        grid:  { color: 'rgba(30,45,61,0.5)' },
+        ticks: { color: '#6b5200', font: { family: mono, size: 9 } },
+        grid:  { color: 'rgba(58,46,0,0.5)' },
       }
     }
   };
 }
 
-// ── INIT ───────────────────────────────────────────────────────────────────────
-initTickerStrip();
+init();
